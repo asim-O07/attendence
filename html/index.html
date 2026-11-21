@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090d16">
+  <meta name="description" content="Simple college attendance tracker">
+  <title>Campus Tracker</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">C</div>
+      <div>
+        <h1>CAMPUS<span>TRACKER</span></h1>
+        <p>YOUR COLLEGE COMPANION</p>
+      </div>
+    </div>
+    <div class="live-indicator">
+      <span></span> LOCAL
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section class="welcome">
+      <div>
+        <p class="eyebrow">STUDENT DASHBOARD</p>
+        <h2>Track your <span>progress.</span></h2>
+        <p class="muted">Every class counts. Stay above 75%.</p>
+      </div>
+      <div class="target-card">
+        <span>YOUR TARGET</span>
+        <strong>75%</strong>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span>OVERALL ATTENDANCE</span>
+        <h2 id="overallPercent">0%</h2>
+        <div class="progress"><div id="overallBar"></div></div>
+        <small id="overallMessage">No classes recorded</small>
+      </div>
+
+      <div class="stat-card">
+        <span>CLASSES ATTENDED</span>
+        <h2 id="presentCount">0</h2>
+        <small>Present lectures</small>
+      </div>
+
+      <div class="stat-card">
+        <span>CLASSES MISSED</span>
+        <h2 id="absentCount">0</h2>
+        <small>Absent lectures</small>
+      </div>
+
+      <div class="stat-card">
+        <span>TOTAL LECTURES</span>
+        <h2 id="totalCount">0</h2>
+        <small>Recorded lectures</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ATTENDANCE MANAGEMENT</p>
+          <h2>Mark attendance</h2>
+        </div>
+        <span class="tag">75% REQUIRED</span>
+      </div>
+
+      <div class="date-row">
+        <label for="attendanceDate">Select date</label>
+        <input type="date" id="attendanceDate">
+      </div>
+
+      <div id="holidayMessage" class="holiday hidden">
+        <span>🌤️</span>
+        <div>
+          <strong>Weekend holiday</strong>
+          <p>Saturday and Sunday are off.</p>
+        </div>
+      </div>
+
+      <div id="attendanceEditor">
+        <div class="editor-heading">
+          <h3>Today's lectures</h3>
+          <span id="lectureCount">0 classes</span>
+        </div>
+
+        <div id="draftList"></div>
+
+        <button id="addLectureBtn" class="secondary-btn">
+          + Add another lecture
+        </button>
+
+        <button id="saveAttendanceBtn" class="primary-btn">
+          Save attendance
+        </button>
+      </div>
+
+      <div class="history-heading">
+        <h3>Recorded classes</h3>
+        <span id="recordDateLabel"></span>
+      </div>
+
+      <div id="dailyRecords" class="record-list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SUBJECT PERFORMANCE</p>
+          <h2>My subjects</h2>
+        </div>
+        <span class="tag">6 SUBJECTS</span>
+      </div>
+
+      <div id="subjectStats" class="subject-list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">PERSONAL SETTINGS</p>
+          <h2>Manage subjects</h2>
+        </div>
+      </div>
+
+      <p class="muted small">
+        Change the default subject names to match your college timetable.
+      </p>
+
+      <div id="subjectEditor" class="subject-editor"></div>
+
+      <button id="saveSubjectsBtn" class="secondary-btn">
+        Save subject names
+      </button>
+    </section>
+
+    <section class="panel information">
+      <h3>Weekly schedule</h3>
+      <div class="week-grid">
+        <div><strong>MON</strong><span>College</span></div>
+        <div><strong>TUE</strong><span>College</span></div>
+        <div><strong>WED</strong><span>College</span></div>
+        <div><strong>THU</strong><span>College</span></div>
+        <div><strong>FRI</strong><span>College</span></div>
+        <div class="off-day"><strong>SAT</strong><span>Holiday</span></div>
+        <div class="off-day"><strong>SUN</strong><span>Holiday</span></div>
+      </div>
+    </section>
+
+    <section class="panel backup-panel">
+      <h3>Data management</h3>
+      <p class="muted small">
+        Your attendance is saved locally on this device. Export a backup regularly.
+      </p>
+      <div class="backup-actions">
+        <button id="exportBtn" class="secondary-btn">Export backup</button>
+        <button id="importBtn" class="secondary-btn">Import backup</button>
+        <input type="file" id="importFile" accept=".json" hidden>
+      </div>
+    </section>
+
+    <footer>
+      <p>CAMPUS TRACKER <span>•</span> MADE FOR STUDENTS</p>
+      <small>Keep learning. Keep growing.</small>
+    </footer>
+
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
