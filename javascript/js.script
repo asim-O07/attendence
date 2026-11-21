@@ -1,0 +1,541 @@
+
+const TARGET = 75;
+const MAX_DAILY_CLASSES = 5;
+
+const DEFAULT_SUBJECTS = [
+  "Mathematics",
+  "C Programming",
+  "Computer Architecture",
+  "Digital Information Technology",
+  "Principles of Management",
+  "Life Skills"
+];
+
+const STORAGE_KEY = "campusTrackerData";
+
+let subjects = [...DEFAULT_SUBJECTS];
+let records = [];
+let drafts = [];
+
+const $ = id => document.getElementById(id);
+
+function localDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isWeekend(date) {
+  const day = new Date(date + "T12:00:00").getDay();
+  return day === 0 || day === 6;
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    subjects,
+    records
+  }));
+}
+
+function loadData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+    if (saved && Array.isArray(saved.subjects) &&
+        saved.subjects.length === 6 &&
+        saved.subjects.every(s => typeof s === "string") &&
+        Array.isArray(saved.records)) {
+
+      subjects = saved.subjects;
+      records = saved.records.filter(r =>
+        r &&
+        typeof r.id === "string" &&
+        Number.isInteger(r.subjectId) &&
+        r.subjectId >= 0 &&
+        r.subjectId < 6 &&
+        ["present", "absent"].includes(r.status) &&
+        typeof r.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(r.date)
+      );
+    }
+  } catch (error) {
+    console.error("Could not load attendance data:", error);
+  }
+}
+
+function toast(message) {
+  const box = $("toast");
+  box.textContent = message;
+  box.classList.add("show");
+
+  setTimeout(() => {
+    box.classList.remove("show");
+  }, 2500);
+}
+
+function percentage(present, total) {
+  return total === 0 ? 0 : Math.round((present / total) * 100);
+}
+
+function getCounts(list) {
+  const present = list.filter(r => r.status === "present").length;
+  const absent = list.filter(r => r.status === "absent").length;
+
+  return {
+    present,
+    absent,
+    total: list.length,
+    percent: percentage(present, list.length)
+  };
+}
+
+// DASHBOARD
+
+function renderDashboard() {
+  const counts = getCounts(records);
+
+  $("overallPercent").textContent = counts.percent + "%";
+  $("presentCount").textContent = counts.present;
+  $("absentCount").textContent = counts.absent;
+  $("totalCount").textContent = counts.total;
+
+  $("overallBar").style.width = counts.percent + "%";
+
+  $("overallBar").style.background =
+    counts.percent >= TARGET ? "#22c55e" : "#f87171";
+
+  $("overallPercent").style.color =
+    counts.percent >= TARGET ? "#22c55e" : "#f87171";
+
+  let message = "No classes recorded";
+
+  if (counts.total > 0 && counts.percent >= TARGET) {
+    message = "Great! You are above your 75% target.";
+  } else if (counts.total > 0) {
+    const needed = Math.ceil(
+      (TARGET * counts.total - 100 * counts.present) /
+      (100 - TARGET)
+    );
+
+    message = `Attend the next ${needed} classes to reach 75%.`;
+  }
+
+  $("overallMessage").textContent = message;
+
+  renderSubjectStats();
+}
+
+// SUBJECT PERFORMANCE
+
+function renderSubjectStats() {
+  const container = $("subjectStats");
+  container.replaceChildren();
+
+  subjects.forEach((subject, index) => {
+    const list = records.filter(r => r.subjectId === index);
+    const counts = getCounts(list);
+
+    const item = document.createElement("div");
+    item.className = "subject-item";
+
+    const info = document.createElement("div");
+    info.className = "subject-info";
+
+    const name = document.createElement("strong");
+    name.textContent = subject;
+
+    const detail = document.createElement("small");
+    detail.textContent =
+      `${counts.present} present • ${counts.absent} absent • ${counts.total} total`;
+
+    const progress = document.createElement("div");
+    progress.className = "progress";
+
+    const bar = document.createElement("div");
+    bar.style.width = counts.percent + "%";
+    bar.style.background =
+      counts.percent >= TARGET ? "#22c55e" : "#f87171";
+
+    progress.appendChild(bar);
+
+    info.append(name, detail, progress);
+
+    const percent = document.createElement("span");
+    percent.className = "subject-percent";
+    percent.style.color =
+      counts.percent >= TARGET ? "#22c55e" : "#f87171";
+    percent.textContent = counts.percent + "%";
+
+    item.append(info, percent);
+    container.appendChild(item);
+  });
+}
+
+// SUBJECT SETTINGS
+
+function renderSubjectEditor() {
+  const container = $("subjectEditor");
+  container.replaceChildren();
+
+  subjects.forEach((subject, index) => {
+    const label = document.createElement("label");
+    label.textContent = `Subject ${index + 1}`;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 50;
+    input.value = subject;
+    input.dataset.subject = index;
+
+    label.appendChild(input);
+    container.appendChild(label);
+  });
+}
+
+$("saveSubjectsBtn").addEventListener("click", () => {
+  const inputs = document.querySelectorAll(
+    "#subjectEditor input"
+  );
+
+  const updated = [...inputs].map(input => input.value.trim());
+
+  if (updated.some(name => !name)) {
+    toast("Please enter all six subject names.");
+    return;
+  }
+
+  if (new Set(updated.map(n => n.toLowerCase())).size !== 6) {
+    toast("Each subject must have a unique name.");
+    return;
+  }
+
+  subjects = updated;
+  saveData();
+  renderAll();
+
+  toast("Subject names updated!");
+});
+
+// ADD LECTURES
+
+function addDraft() {
+  const date = $("attendanceDate").value;
+  const existing = records.filter(r => r.date === date).length;
+
+  if (isWeekend(date)) {
+    toast("Saturday and Sunday are holidays.");
+    return;
+  }
+
+  if (existing + drafts.length >= MAX_DAILY_CLASSES) {
+    toast("Maximum 5 classes per day.");
+    return;
+  }
+
+  drafts.push({
+    subjectId: 0,
+    status: "present"
+  });
+
+  renderDrafts();
+}
+
+function renderDrafts() {
+  const container = $("draftList");
+  container.replaceChildren();
+
+  drafts.forEach((draft, index) => {
+    const row = document.createElement("div");
+    row.className = "draft-row";
+
+    const subjectSelect = document.createElement("select");
+
+    subjects.forEach((subject, subjectIndex) => {
+      const option = document.createElement("option");
+      option.value = subjectIndex;
+      option.textContent = subject;
+      subjectSelect.appendChild(option);
+    });
+
+    subjectSelect.value = draft.subjectId;
+
+    subjectSelect.addEventListener("change", () => {
+      draft.subjectId = Number(subjectSelect.value);
+    });
+
+    const statusSelect = document.createElement("select");
+
+    [
+      ["present", "Present"],
+      ["absent", "Absent"]
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      statusSelect.appendChild(option);
+    });
+
+    statusSelect.value = draft.status;
+
+    statusSelect.addEventListener("change", () => {
+      draft.status = statusSelect.value;
+    });
+
+    const removeButton = document.createElement("button");
+    removeButton.textContent = "×";
+    removeButton.title = "Remove lecture";
+
+    removeButton.addEventListener("click", () => {
+      drafts.splice(index, 1);
+      renderDrafts();
+    });
+
+    row.append(subjectSelect, statusSelect, removeButton);
+    container.appendChild(row);
+  });
+
+  const date = $("attendanceDate").value;
+  const existing = records.filter(r => r.date === date).length;
+
+  $("lectureCount").textContent =
+    `${existing + drafts.length} / ${MAX_DAILY_CLASSES} classes`;
+}
+
+$("addLectureBtn").addEventListener("click", addDraft);
+
+// SAVE ATTENDANCE
+
+$("saveAttendanceBtn").addEventListener("click", () => {
+  const date = $("attendanceDate").value;
+
+  if (!date) {
+    toast("Select a date first.");
+    return;
+  }
+
+  if (isWeekend(date)) {
+    toast("Weekend attendance is disabled.");
+    return;
+  }
+
+  if (drafts.length === 0) {
+    toast("Add at least one lecture first.");
+    return;
+  }
+
+  const existing = records.filter(r => r.date === date).length;
+
+  if (existing + drafts.length > MAX_DAILY_CLASSES) {
+    toast("You can record a maximum of 5 classes.");
+    return;
+  }
+
+  drafts.forEach(draft => {
+    records.push({
+      id: crypto.randomUUID(),
+      date,
+      subjectId: draft.subjectId,
+      status: draft.status
+    });
+  });
+
+  drafts = [];
+  saveData();
+  renderAll();
+
+  toast("Attendance saved successfully!");
+});
+
+// DAILY HISTORY
+
+function renderDailyRecords() {
+  const date = $("attendanceDate").value;
+  const container = $("dailyRecords");
+
+  container.replaceChildren();
+
+  $("recordDateLabel").textContent = date;
+
+  const daily = records
+    .filter(r => r.date === date)
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  if (daily.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted small";
+    empty.textContent = "No attendance recorded for this date.";
+    container.appendChild(empty);
+    return;
+  }
+
+  daily.forEach(record => {
+    const item = document.createElement("div");
+    item.className = "record-item";
+
+    const info = document.createElement("div");
+
+    const name = document.createElement("strong");
+    name.textContent = subjects[record.subjectId];
+
+    const detail = document.createElement("small");
+    detail.textContent = "Lecture attendance";
+
+    info.append(name, detail);
+
+    const status = document.createElement("span");
+    status.className = `status ${record.status}`;
+    status.textContent =
+      record.status === "present" ? "PRESENT" : "ABSENT";
+
+    const remove = document.createElement("button");
+    remove.className = "delete-btn";
+    remove.textContent = "×";
+    remove.title = "Delete record";
+
+    remove.addEventListener("click", () => {
+      if (!confirm("Delete this attendance record?")) return;
+
+      records = records.filter(r => r.id !== record.id);
+      saveData();
+      renderAll();
+      toast("Record deleted.");
+    });
+
+    item.append(info, status, remove);
+    container.appendChild(item);
+  });
+}
+
+// DATE SELECTION
+
+$("attendanceDate").addEventListener("change", () => {
+  drafts = [];
+  updateDateView();
+});
+
+function updateDateView() {
+  const date = $("attendanceDate").value;
+
+  const holiday = isWeekend(date);
+
+  $("holidayMessage").classList.toggle("hidden", !holiday);
+  $("attendanceEditor").classList.toggle("hidden", holiday);
+
+  if (holiday) {
+    drafts = [];
+  }
+
+  renderDrafts();
+  renderDailyRecords();
+}
+
+function renderAll() {
+  renderDashboard();
+  renderSubjectEditor();
+  updateDateView();
+}
+
+// BACKUP EXPORT
+
+$("exportBtn").addEventListener("click", () => {
+  const backup = {
+    app: "Campus Tracker",
+    version: 1,
+    subjects,
+    records
+  };
+
+  const blob = new Blob(
+    [JSON.stringify(backup, null, 2)],
+    { type: "application/json" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `campus-attendance-${localDate()}.json`;
+  link.click();
+
+  URL.revokeObjectURL(url);
+  toast("Backup exported!");
+});
+
+// BACKUP IMPORT
+
+$("importBtn").addEventListener("click", () => {
+  $("importFile").click();
+});
+
+$("importFile").addEventListener("change", async event => {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  try {
+    const data = JSON.parse(await file.text());
+
+    const validSubjects =
+      Array.isArray(data.subjects) &&
+      data.subjects.length === 6 &&
+      data.subjects.every(s =>
+        typeof s === "string" &&
+        s.trim().length > 0 &&
+        s.length <= 50
+      ) &&
+      new Set(data.subjects.map(s => s.toLowerCase())).size === 6;
+
+    const validRecords =
+      Array.isArray(data.records) &&
+      data.records.every(r =>
+        r &&
+        typeof r.id === "string" &&
+        typeof r.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(r.date) &&
+        Number.isInteger(r.subjectId) &&
+        r.subjectId >= 0 &&
+        r.subjectId < 6 &&
+        ["present", "absent"].includes(r.status)
+      );
+
+    if (!validSubjects || !validRecords) {
+      throw new Error("Invalid backup format");
+    }
+
+    if (!confirm("Import backup? This will replace current attendance data.")) {
+      event.target.value = "";
+      return;
+    }
+
+    subjects = data.subjects;
+    records = data.records;
+
+    saveData();
+    drafts = [];
+    renderAll();
+
+    toast("Backup imported successfully!");
+  } catch (error) {
+    toast("Invalid backup file.");
+  }
+
+  event.target.value = "";
+});
+
+// START APP
+
+function startApp() {
+  loadData();
+
+  $("attendanceDate").value = localDate();
+
+  renderAll();
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("./sw.js")
+      .catch(error => console.error("Service worker:", error));
+  }
+}
+
+startApp();
